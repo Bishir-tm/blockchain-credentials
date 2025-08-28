@@ -1,0 +1,26 @@
+{
+  "name": "blockchain-credentials",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node server.js",
+    "deploy": "npx hardhat run scripts/deploy.js --network localhost",
+    "postdeploy": "copy deployment.json frontend/public/deployment.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "hardhat": "^2.26.3"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "qrcode": "^1.5.4",
+    "uuid": "^11.1.0",
+    "web3": "^4.16.0"
+  }
+}
