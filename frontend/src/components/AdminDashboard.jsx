@@ -14,6 +14,8 @@ import {
   Clock,
   CheckCircle,
   TrendingUp,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 
 function AdminDashboard() {
@@ -21,25 +23,49 @@ function AdminDashboard() {
   const [dashboardStats, setDashboardStats] = useState({
     totalCertificates: 0,
     recentCertificates: [],
-    systemStatus: "active",
+    systemStatus: "checking",
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
+  // Add refresh when switching back to dashboard
+  useEffect(() => {
+    if (activeTab === "dashboard") {
+      fetchDashboardData();
+    }
+  }, [activeTab]);
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      setError("");
+
+      console.log("Fetching dashboard data...");
+
+      // First check if the server is running
       const response = await axios.get(
-        "http://localhost:3001/api/admin/certificates"
+        "http://localhost:3001/api/admin/certificates",
+        {
+          timeout: 10000, // 10 second timeout
+        }
       );
+
+      console.log("Response received:", response.data);
+
       const certificates = response.data.certificates || [];
+      console.log("Certificates count:", certificates.length);
 
       // Get recent certificates (last 5)
       const recentCertificates = certificates
-        .sort((a, b) => parseInt(b.issueTimestamp) - parseInt(a.issueTimestamp))
+        .sort((a, b) => {
+          const timestampA = parseInt(a.issueTimestamp) || 0;
+          const timestampB = parseInt(b.issueTimestamp) || 0;
+          return timestampB - timestampA;
+        })
         .slice(0, 5);
 
       setDashboardStats({
@@ -47,16 +73,44 @@ function AdminDashboard() {
         recentCertificates,
         systemStatus: "active",
       });
+
+      console.log("Dashboard stats updated:", {
+        total: certificates.length,
+        recent: recentCertificates.length,
+      });
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
-      setDashboardStats((prev) => ({ ...prev, systemStatus: "error" }));
+
+      let errorMessage = "Failed to fetch dashboard data";
+      if (
+        error.code === "ECONNREFUSED" ||
+        error.message.includes("Network Error")
+      ) {
+        errorMessage =
+          "Cannot connect to server. Make sure the backend server is running on port 3001.";
+      } else if (error.response) {
+        errorMessage = error.response.data?.error || error.response.statusText;
+      }
+
+      setError(errorMessage);
+      setDashboardStats((prev) => ({
+        ...prev,
+        systemStatus: "error",
+        totalCertificates: 0,
+        recentCertificates: [],
+      }));
     } finally {
       setLoading(false);
     }
   };
 
   const formatTimestamp = (timestamp) => {
-    return new Date(parseInt(timestamp) * 1000).toLocaleDateString();
+    try {
+      const date = new Date(parseInt(timestamp) * 1000);
+      return date.toLocaleDateString();
+    } catch (e) {
+      return "Invalid Date";
+    }
   };
 
   const StatCard = ({ icon: Icon, title, value, subtitle, color = "blue" }) => {
@@ -65,6 +119,7 @@ function AdminDashboard() {
       green: "bg-green-50 text-green-600 border-green-200",
       purple: "bg-purple-50 text-purple-600 border-purple-200",
       orange: "bg-orange-50 text-orange-600 border-orange-200",
+      red: "bg-red-50 text-red-600 border-red-200",
     };
 
     return (
@@ -145,10 +200,49 @@ function AdminDashboard() {
                 <h2 className="text-2xl font-bold text-gray-800">
                   Admin Dashboard
                 </h2>
-                <div className="text-sm text-gray-600">
-                  Last updated: {new Date().toLocaleString()}
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={fetchDashboardData}
+                    disabled={loading}
+                    className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      className={`w-4 h-4 mr-2 ${
+                        loading ? "animate-spin" : ""
+                      }`}
+                    />
+                    Refresh
+                  </button>
+                  <div className="text-sm text-gray-600">
+                    Last updated: {new Date().toLocaleString()}
+                  </div>
                 </div>
               </div>
+
+              {/* Show connection error prominently */}
+              {error && (
+                <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center">
+                  <AlertTriangle className="w-5 h-5 mr-2" />
+                  <div>
+                    <p className="font-semibold">Connection Error</p>
+                    <p className="text-sm">{error}</p>
+                    <div className="mt-2 text-sm">
+                      <p>Make sure:</p>
+                      <ul className="list-disc list-inside ml-2">
+                        <li>
+                          Backend server is running: <code>npm run dev</code>
+                        </li>
+                        <li>
+                          Hardhat node is running: <code>npx hardhat node</code>
+                        </li>
+                        <li>
+                          Contract is deployed: <code>npm run deploy</code>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {loading ? (
                 <div className="flex justify-center items-center py-12">
@@ -173,13 +267,23 @@ function AdminDashboard() {
                       value={
                         dashboardStats.systemStatus === "active"
                           ? "Online"
+                          : dashboardStats.systemStatus === "checking"
+                          ? "Checking..."
                           : "Offline"
                       }
-                      subtitle="Blockchain connected"
+                      subtitle={
+                        dashboardStats.systemStatus === "active"
+                          ? "Blockchain connected"
+                          : dashboardStats.systemStatus === "checking"
+                          ? "Connecting..."
+                          : "Connection failed"
+                      }
                       color={
                         dashboardStats.systemStatus === "active"
                           ? "green"
-                          : "orange"
+                          : dashboardStats.systemStatus === "checking"
+                          ? "orange"
+                          : "red"
                       }
                     />
 
@@ -199,14 +303,18 @@ function AdminDashboard() {
                       title="This Month"
                       value={
                         dashboardStats.recentCertificates.filter((cert) => {
-                          const certDate = new Date(
-                            parseInt(cert.issueTimestamp) * 1000
-                          );
-                          const now = new Date();
-                          return (
-                            certDate.getMonth() === now.getMonth() &&
-                            certDate.getFullYear() === now.getFullYear()
-                          );
+                          try {
+                            const certDate = new Date(
+                              parseInt(cert.issueTimestamp) * 1000
+                            );
+                            const now = new Date();
+                            return (
+                              certDate.getMonth() === now.getMonth() &&
+                              certDate.getFullYear() === now.getFullYear()
+                            );
+                          } catch (e) {
+                            return false;
+                          }
                         }).length
                       }
                       subtitle="Certificates issued"
@@ -219,7 +327,8 @@ function AdminDashboard() {
                     <div className="bg-gray-50 rounded-lg p-6">
                       <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                         <Clock className="w-5 h-5 mr-2" />
-                        Recent Certificates
+                        Recent Certificates (
+                        {dashboardStats.recentCertificates.length})
                       </h3>
 
                       {dashboardStats.recentCertificates.length === 0 ? (
@@ -244,10 +353,10 @@ function AdminDashboard() {
                                 <div className="flex items-center justify-between">
                                   <div>
                                     <p className="font-medium text-gray-800">
-                                      {cert.studentName}
+                                      {cert.studentName || "Unknown Student"}
                                     </p>
                                     <p className="text-sm text-gray-600">
-                                      {cert.degree}
+                                      {cert.degree || "Unknown Degree"}
                                     </p>
                                   </div>
                                   <div className="text-right">
@@ -261,14 +370,12 @@ function AdminDashboard() {
                             )
                           )}
 
-                          {dashboardStats.recentCertificates.length > 0 && (
-                            <button
-                              onClick={() => setActiveTab("certificates")}
-                              className="w-full text-center py-2 text-blue-600 hover:text-blue-800 font-medium"
-                            >
-                              View all certificates →
-                            </button>
-                          )}
+                          <button
+                            onClick={() => setActiveTab("certificates")}
+                            className="w-full text-center py-2 text-blue-600 hover:text-blue-800 font-medium"
+                          >
+                            View all certificates →
+                          </button>
                         </div>
                       )}
                     </div>
@@ -362,7 +469,9 @@ function AdminDashboard() {
             </div>
           )}
 
-          {activeTab === "issue" && <IssueCredential />}
+          {activeTab === "issue" && (
+            <IssueCredential onCertificateIssued={() => fetchDashboardData()} />
+          )}
           {activeTab === "certificates" && <CertificateList />}
           {activeTab === "settings" && <Settings />}
         </div>

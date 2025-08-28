@@ -43,7 +43,7 @@ contract AcademicCredentials {
         bytes32 _certificateHash
     ) public onlyAdmin {
         require(!certificates[_certificateId].exists, "Certificate already exists");
-        
+         
         certificates[_certificateId] = Certificate({
             studentId: _studentId,
             studentName: _studentName,

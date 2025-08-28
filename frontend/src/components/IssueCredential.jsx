@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import QRGenerator from "./QRGenerator";
-import { User, GraduationCap, Calendar, Hash, Download } from "lucide-react";
+import {
+  User,
+  GraduationCap,
+  Calendar,
+  Hash,
+  Download,
+  AlertTriangle,
+} from "lucide-react";
 
-function IssueCredential() {
+function IssueCredential({ onCertificateIssued }) {
   const [institutionName, setInstitutionName] = useState("Tech University");
   const [formData, setFormData] = useState({
     studentName: "",
@@ -37,10 +44,17 @@ function IssueCredential() {
     setError("");
 
     try {
+      console.log("Submitting certificate data:", formData);
+
       const response = await axios.post(
         "http://localhost:3001/api/certificates/issue",
-        formData
+        formData,
+        {
+          timeout: 30000, // 30 second timeout for blockchain operations
+        }
       );
+
+      console.log("Certificate issuance response:", response.data);
 
       if (response.data.success) {
         setIssuedCertificate(response.data.certificate);
@@ -51,9 +65,30 @@ function IssueCredential() {
           graduationDate: "",
           institution: institutionName,
         });
+
+        // Notify parent component to refresh dashboard
+        if (onCertificateIssued) {
+          console.log("Notifying parent about certificate issuance");
+          setTimeout(() => {
+            onCertificateIssued();
+          }, 1000); // Wait a bit for blockchain confirmation
+        }
       }
     } catch (error) {
-      setError(error.response?.data?.error || "Failed to issue certificate");
+      console.error("Certificate issuance error:", error);
+
+      let errorMessage = "Failed to issue certificate";
+      if (error.code === "ECONNREFUSED") {
+        errorMessage =
+          "Cannot connect to server. Make sure the backend server is running.";
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message.includes("timeout")) {
+        errorMessage =
+          "Request timed out. The blockchain might be slow or the node might not be running.";
+      }
+
+      setError(errorMessage);
     }
 
     setLoading(false);
@@ -80,6 +115,11 @@ function IssueCredential() {
     linkElement.setAttribute("href", dataUri);
     linkElement.setAttribute("download", exportFileDefaultName);
     linkElement.click();
+  };
+
+  const handleIssueAnother = () => {
+    setIssuedCertificate(null);
+    setError("");
   };
 
   if (issuedCertificate) {
@@ -125,6 +165,16 @@ function IssueCredential() {
                     </code>
                   </div>
                 </div>
+                <div className="flex items-start">
+                  <Hash className="w-5 h-5 text-gray-600 mr-3 mt-1" />
+                  <div>
+                    <strong>Transaction Hash:</strong>
+                    <br />
+                    <code className="text-sm bg-gray-100 p-1 rounded break-all">
+                      {issuedCertificate.transactionHash}
+                    </code>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -157,7 +207,7 @@ function IssueCredential() {
               Download Certificate Data
             </button>
             <button
-              onClick={() => setIssuedCertificate(null)}
+              onClick={handleIssueAnother}
               className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
             >
               Issue Another Certificate
@@ -186,6 +236,7 @@ function IssueCredential() {
             value={formData.studentName}
             onChange={handleChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+            placeholder="Enter student's full name"
             required
           />
         </div>
@@ -268,19 +319,56 @@ function IssueCredential() {
         </div>
 
         {error && (
-          <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
+          <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-start">
+            <AlertTriangle className="w-5 h-5 mr-2 mt-0.5" />
+            <div>
+              <p className="font-semibold">Error issuing certificate</p>
+              <p className="text-sm">{error}</p>
+              {error.includes("server") && (
+                <div className="mt-2 text-sm">
+                  <p>Make sure:</p>
+                  <ul className="list-disc list-inside ml-2">
+                    <li>
+                      Backend server is running: <code>npm run dev</code>
+                    </li>
+                    <li>
+                      Hardhat node is running: <code>npx hardhat node</code>
+                    </li>
+                    <li>
+                      Contract is deployed: <code>npm run deploy</code>
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
         >
-          {loading ? "Issuing Certificate..." : "Issue Certificate"}
+          {loading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              Issuing Certificate...
+            </>
+          ) : (
+            "Issue Certificate"
+          )}
         </button>
       </form>
+
+      {loading && (
+        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-blue-700 text-sm">
+            <strong>Please wait...</strong> The certificate is being written to
+            the blockchain. This may take a few moments depending on network
+            conditions.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
