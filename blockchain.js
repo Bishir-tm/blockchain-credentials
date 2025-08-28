@@ -123,18 +123,53 @@ class BlockchainService {
         .verifyCertificate(certificateId)
         .call();
 
+      // Convert BigInt values to strings to avoid serialization issues
       return {
         exists: result[0],
         studentName: result[1],
         degree: result[2],
         graduationDate: result[3],
         institution: result[4],
-        issueTimestamp: result[5],
+        issueTimestamp: result[5].toString(), // Convert BigInt to string
         certificateHash: result[6],
       };
     } catch (error) {
       console.error("Error verifying certificate:", error);
       return { exists: false, error: error.message };
+    }
+  }
+
+  async getCertificatesByAdmin() {
+    if (!this.contract) {
+      throw new Error("Contract not loaded. Please check deployment.");
+    }
+
+    try {
+      // Get past CertificateIssued events
+      const events = await this.contract.getPastEvents("CertificateIssued", {
+        fromBlock: 0,
+        toBlock: "latest",
+      });
+
+      const certificates = [];
+      for (const event of events) {
+        const certificateId = event.returnValues.certificateId;
+        const certificate = await this.verifyCertificate(certificateId);
+
+        if (certificate.exists) {
+          certificates.push({
+            certificateId,
+            ...certificate,
+            blockNumber: event.blockNumber.toString(),
+            transactionHash: event.transactionHash,
+          });
+        }
+      }
+
+      return certificates;
+    } catch (error) {
+      console.error("Error fetching certificates:", error);
+      return [];
     }
   }
 

@@ -38,6 +38,16 @@ app.get("/api/admin/address", async (req, res) => {
   }
 });
 
+// Get all certificates issued by admin
+app.get("/api/admin/certificates", async (req, res) => {
+  try {
+    const certificates = await blockchain.getCertificatesByAdmin();
+    res.json({ certificates });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Issue certificate
 app.post("/api/certificates/issue", async (req, res) => {
   try {
@@ -86,6 +96,30 @@ app.get("/api/certificates/verify/:id", async (req, res) => {
     const { id } = req.params;
     const result = await blockchain.verifyCertificate(id);
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get single certificate details for admin
+app.get("/api/certificates/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await blockchain.verifyCertificate(id);
+
+    if (result.exists) {
+      const verificationUrl = `http://localhost:5173/verify?id=${id}`;
+      const qrCode = await QRCode.toDataURL(verificationUrl);
+
+      res.json({
+        ...result,
+        certificateId: id,
+        qrCode,
+        verificationUrl,
+      });
+    } else {
+      res.status(404).json({ error: "Certificate not found" });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -1,19 +1,28 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import QRGenerator from "./QRGenerator";
 import { User, GraduationCap, Calendar, Hash, Download } from "lucide-react";
 
 function IssueCredential() {
+  const [institutionName, setInstitutionName] = useState("Tech University");
   const [formData, setFormData] = useState({
     studentName: "",
     studentId: "",
     degree: "",
     graduationDate: "",
-    institution: "Tech University",
+    institution: "",
   });
   const [issuedCertificate, setIssuedCertificate] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    // Load institution name from localStorage
+    const saved = localStorage.getItem("institutionName");
+    const name = saved || "Tech University";
+    setInstitutionName(name);
+    setFormData((prev) => ({ ...prev, institution: name }));
+  }, []);
 
   const handleChange = (e) => {
     setFormData({
@@ -40,7 +49,7 @@ function IssueCredential() {
           studentId: "",
           degree: "",
           graduationDate: "",
-          institution: "Tech University",
+          institution: institutionName,
         });
       }
     } catch (error) {
@@ -250,9 +259,12 @@ function IssueCredential() {
             name="institution"
             value={formData.institution}
             onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 bg-gray-100"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 bg-gray-50"
             readOnly
           />
+          <p className="text-sm text-gray-600 mt-1">
+            Change institution name in Settings tab
+          </p>
         </div>
 
         {error && (
