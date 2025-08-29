@@ -17,6 +17,12 @@ contract AcademicCredentials {
     mapping(string => Certificate) public certificates;
     mapping(bytes32 => string) public hashToCertId;
     
+    // NEW: Array to store all issued certificate IDs
+    string[] public issuedCertificateIds;
+    
+    // NEW: Mapping to track if a certificate ID is already in the array (prevents duplicates)
+    mapping(string => bool) private certificateIdExists;
+    
     event CertificateIssued(
         string indexed certificateId,
         string studentName,
@@ -56,6 +62,12 @@ contract AcademicCredentials {
         });
         
         hashToCertId[_certificateHash] = _certificateId;
+        
+        // NEW: Add certificate ID to the array if not already added
+        if (!certificateIdExists[_certificateId]) {
+            issuedCertificateIds.push(_certificateId);
+            certificateIdExists[_certificateId] = true;
+        }
         
         emit CertificateIssued(_certificateId, _studentName, _degree, _certificateHash);
     }
@@ -97,5 +109,24 @@ contract AcademicCredentials {
             cert.studentName,
             cert.degree
         );
+    }
+    
+    // NEW: Get all issued certificate IDs
+    function getAllCertificateIds() 
+        public view returns (string[] memory) {
+        return issuedCertificateIds;
+    }
+    
+    // NEW: Get the total number of issued certificates
+    function getTotalCertificates() 
+        public view returns (uint256) {
+        return issuedCertificateIds.length;
+    }
+    
+    // NEW: Get certificate ID by index (for pagination)
+    function getCertificateIdByIndex(uint256 _index) 
+        public view returns (string memory) {
+        require(_index < issuedCertificateIds.length, "Index out of bounds");
+        return issuedCertificateIds[_index];
     }
 }

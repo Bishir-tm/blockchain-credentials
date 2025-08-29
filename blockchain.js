@@ -145,31 +145,81 @@ class BlockchainService {
     }
 
     try {
-      // Get past CertificateIssued events
-      const events = await this.contract.getPastEvents("CertificateIssued", {
-        fromBlock: 0,
-        toBlock: "latest",
-      });
+      console.log("Fetching all certificate IDs from contract...");
+
+      // NEW: Get all certificate IDs directly from contract storage
+      const certificateIds = await this.contract.methods
+        .getAllCertificateIds()
+        .call();
+
+      console.log("Retrieved certificate IDs:", certificateIds);
 
       const certificates = [];
-      for (const event of events) {
-        const certificateId = event.returnValues.certificateId;
+
+      // For each certificate ID, get the full certificate details
+      for (const certificateId of certificateIds) {
+        console.log(`Fetching details for certificate: ${certificateId}`);
+
         const certificate = await this.verifyCertificate(certificateId);
 
         if (certificate.exists) {
           certificates.push({
             certificateId,
             ...certificate,
-            blockNumber: event.blockNumber.toString(),
-            transactionHash: event.transactionHash,
           });
+        } else {
+          console.warn(
+            `Certificate ${certificateId} exists in ID list but not in storage`
+          );
         }
       }
 
+      console.log(`Successfully fetched ${certificates.length} certificates`);
       return certificates;
     } catch (error) {
       console.error("Error fetching certificates:", error);
-      return [];
+
+      // Fallback: Try to get total count and fetch by index
+      try {
+        console.log("Attempting fallback method...");
+        const totalCount = await this.contract.methods
+          .getTotalCertificates()
+          .call();
+        console.log("Total certificates count:", totalCount.toString());
+
+        const certificates = [];
+        const count = parseInt(totalCount.toString());
+
+        for (let i = 0; i < count; i++) {
+          try {
+            const certificateId = await this.contract.methods
+              .getCertificateIdByIndex(i)
+              .call();
+
+            const certificate = await this.verifyCertificate(certificateId);
+
+            if (certificate.exists) {
+              certificates.push({
+                certificateId,
+                ...certificate,
+              });
+            }
+          } catch (indexError) {
+            console.error(
+              `Error fetching certificate at index ${i}:`,
+              indexError
+            );
+          }
+        }
+
+        console.log(
+          `Fallback method retrieved ${certificates.length} certificates`
+        );
+        return certificates;
+      } catch (fallbackError) {
+        console.error("Fallback method also failed:", fallbackError);
+        return [];
+      }
     }
   }
 
@@ -183,6 +233,76 @@ class BlockchainService {
     } catch (error) {
       console.error("Error getting admin address:", error);
       throw error;
+    }
+  }
+
+  // NEW: Get certificate count for dashboard metrics
+  async getCertificateCount() {
+    if (!this.contract) {
+      throw new Error("Contract not loaded. Please check deployment.");
+    }
+
+    try {
+      const count = await this.contract.methods.getTotalCertificates().call();
+      return parseInt(count.toString());
+    } catch (error) {
+      console.error("Error getting certificate count:", error);
+      return 0;
+    }
+  }
+
+  // NEW: Get certificates with pagination support
+  async getCertificatesPaginated(offset = 0, limit = 10) {
+    if (!this.contract) {
+      throw new Error("Contract not loaded. Please check deployment.");
+    }
+
+    try {
+      const totalCount = await this.getCertificateCount();
+      const certificates = [];
+
+      const startIndex = Math.max(0, totalCount - offset - limit);
+      const endIndex = Math.max(0, totalCount - offset);
+
+      // Get certificates in reverse order (newest first)
+      for (let i = endIndex - 1; i >= startIndex; i--) {
+        try {
+          const certificateId = await this.contract.methods
+            .getCertificateIdByIndex(i)
+            .call();
+
+          const certificate = await this.verifyCertificate(certificateId);
+
+          if (certificate.exists) {
+            certificates.push({
+              certificateId,
+              ...certificate,
+            });
+          }
+        } catch (indexError) {
+          console.error(
+            `Error fetching certificate at index ${i}:`,
+            indexError
+          );
+        }
+      }
+
+      return {
+        certificates,
+        total: totalCount,
+        offset,
+        limit,
+        hasMore: startIndex > 0,
+      };
+    } catch (error) {
+      console.error("Error fetching paginated certificates:", error);
+      return {
+        certificates: [],
+        total: 0,
+        offset: 0,
+        limit,
+        hasMore: false,
+      };
     }
   }
 }
