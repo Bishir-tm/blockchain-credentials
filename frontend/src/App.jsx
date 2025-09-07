@@ -14,7 +14,7 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600">
+      <div className="min-h-screen bg-blue-700">
         <nav className="bg-white shadow-lg">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex justify-between h-16">

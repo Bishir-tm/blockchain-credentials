@@ -435,35 +435,6 @@ function AdminDashboard() {
                       </div>
                     </div>
                   </div>
-
-                  {/* System Information */}
-                  <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-blue-800 mb-2">
-                      System Information
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <span className="text-blue-700 font-medium">
-                          Blockchain Network:
-                        </span>
-                        <p className="text-blue-600">Localhost (Development)</p>
-                      </div>
-                      <div>
-                        <span className="text-blue-700 font-medium">
-                          Smart Contract:
-                        </span>
-                        <p className="text-blue-600 font-mono text-xs">
-                          AcademicCredentials.sol
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-blue-700 font-medium">
-                          Security:
-                        </span>
-                        <p className="text-blue-600">Blockchain Verified</p>
-                      </div>
-                    </div>
-                  </div>
                 </>
               )}
             </div>
